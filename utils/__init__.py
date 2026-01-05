@@ -10,6 +10,7 @@ from .file_handler import (
     save_solution_to_pickle # Added the alias here too
 )
 from .constraint_checker import find_violations
+from .excel_exporter import export_solution_to_excel
 
 __all__ = [
     'InputData',
@@ -20,4 +21,5 @@ __all__ = [
     'load_model_solution',
     'save_solution_to_pickle',
     'find_violations',
+    'export_solution_to_excel',
 ]
