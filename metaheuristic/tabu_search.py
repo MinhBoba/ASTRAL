@@ -29,7 +29,11 @@ class TabuSearchSolver:
         self.mo_moves_attempted = 0
         self.mo_moves_accepted_as_best = 0
 
-        # Build Capability Map (Logic check from old code)
+        # Restart Strategy Parameter
+        # Kích hoạt restart nếu không cải thiện trong thời gian dài (gấp 3 lần ngưỡng tăng tenure)
+        self.restart_threshold = self.increase_threshold * 3
+
+        # Build Capability Map
         param_enable = self.input.param.get("paramYenable", {})
         self.cap_map = defaultdict(set)
         for (l, s), val in param_enable.items():
@@ -54,6 +58,7 @@ class TabuSearchSolver:
     def solve(self):
         print(f"Bắt đầu tối ưu hóa. Chi phí ban đầu: {self.best_cost:,.2f}")
         print(f"Nhiệm kỳ Tabu ban đầu: {self.current_tenure}. Phạm vi động: [{self.min_tenure}, {self.max_tenure}]")
+        print(f"Ngưỡng kích hoạt Restart: {self.restart_threshold} vòng lặp không cải thiện.")
         
         last_iter = self.max_iter
         
@@ -63,7 +68,9 @@ class TabuSearchSolver:
                 last_iter = i
                 break
 
-            # 1. Generate Neighbors (Delegated to module, passing adaptive param)
+            # 1. Generate Neighbors
+            # Lưu ý: Evaluator có khả năng Fast Fail, nhưng cần neighbor generator truyền best_cost vào (nếu có update).
+            # Ở đây ta gọi mặc định, việc tối ưu Fast Fail trong neighbor_generator có thể làm ở bước sau.
             neighbors = self.neighbor_gen.generate_neighbors(
                 self.current_solution, 
                 self.mo_probability, 
@@ -85,7 +92,7 @@ class TabuSearchSolver:
                 
                 if is_best_ever or is_not_tabu:
                     self.current_solution = neighbor
-                    chosen_move_is_mo = 'type' in neighbor # Check tag from Generator
+                    chosen_move_is_mo = 'type' in neighbor
                     self.tabu_list.append(move)
                     
                     if is_best_ever:
@@ -107,6 +114,27 @@ class TabuSearchSolver:
             self._update_mo_strategy(chosen_move_is_mo, improvement_this_iteration)
             self._update_tenure(improvement_this_iteration)
 
+            # --- NEW: Restart Strategy Logic ---
+            if improvement_this_iteration:
+                self.no_improvement_counter = 0 # Reset counter
+            else:
+                self.no_improvement_counter += 1
+                
+                # Kiểm tra điều kiện Restart
+                if self.no_improvement_counter >= self.restart_threshold:
+                    if self.verbose:
+                        print(f"  -> [RESTART] Đã kẹt {self.no_improvement_counter} vòng. Xáo trộn giải pháp tốt nhất để tìm hướng mới.")
+                    
+                    # Lấy giải pháp tốt nhất hiện có, làm nhiễu nó 30%
+                    self.current_solution = self.evaluator.perturb_solution(self.best_solution, perturbation_rate=0.3)
+                    
+                    # Xóa Tabu list để cho phép đi lại các nước cũ nếu cần
+                    self.tabu_list.clear()
+                    
+                    # Reset lại bộ đếm để không restart liên tục
+                    self.no_improvement_counter = 0
+
+            # Progress logging
             if i % 100 == 0 and i > 0:
                 print(f"Vòng lặp {i}: Chi phí hiện tại = {self.current_solution['total_cost']:,.2f}, "
                       f"Tốt nhất = {self.best_cost:,.2f}, Xác suất MO = {self.mo_probability:.2f}")
@@ -120,7 +148,6 @@ class TabuSearchSolver:
         print("="*50)
         
         self.best_solution['is_final_check'] = True
-        # Final evaluation to ensure consistency
         self.best_solution = self.evaluator.repair_and_evaluate(self.best_solution)
         return self.best_solution
 
@@ -155,7 +182,7 @@ class TabuSearchSolver:
     def _update_tenure(self, improvement_this_iteration):
         if improvement_this_iteration:
             self.consecutive_improvements_counter += 1
-            self.no_improvement_counter = 0
+            # Note: no_improvement_counter is handled in the main loop for Restart logic
             if self.consecutive_improvements_counter >= self.decrease_threshold:
                 if self.current_tenure > self.min_tenure:
                     self.current_tenure = max(self.min_tenure, self.current_tenure - 1)
@@ -163,22 +190,19 @@ class TabuSearchSolver:
                     if self.verbose: print(f"  -> Cải thiện liên tục. Nhiệm kỳ giảm xuống: {self.current_tenure}")
                 self.consecutive_improvements_counter = 0
         else:
-            self.no_improvement_counter += 1
             self.consecutive_improvements_counter = 0
-            if self.no_improvement_counter >= self.increase_threshold:
+            # Logic tăng tenure khi không cải thiện (nhỏ hơn logic restart)
+            # Dùng ngưỡng increase_threshold riêng, không reset no_improvement_counter ở đây 
+            # để logic Restart hoạt động đúng.
+            if self.no_improvement_counter > 0 and self.no_improvement_counter % self.increase_threshold == 0:
                 if self.current_tenure < self.max_tenure:
                     self.current_tenure = min(self.max_tenure, self.current_tenure + 2)
                     self._update_tabu_list_capacity()
                     if self.verbose: print(f"  -> Không cải thiện. Nhiệm kỳ tăng lên: {self.current_tenure}")
-                self.no_improvement_counter = 0
 
-    # Include reporter methods if needed (print_solution_summary, etc.) 
-    # or keep them external/in a Visualizer class.
     def print_solution_summary(self, solution=None):
         sol = solution or self.best_solution
         if not sol: print("No solution."); return
-        
         setup_cost = len(sol.get('changes', {})) * self.input.param['Csetup']
-        # Note: Recalculate late cost for display if needed, or use stored total
         print(f"Tổng chi phí: {sol['total_cost']:,.2f}")
         print(f"Setup Cost: {setup_cost:,.2f}")
