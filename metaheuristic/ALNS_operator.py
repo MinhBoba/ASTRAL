@@ -33,6 +33,7 @@ class ALNSOperator:
         return style in self.cap_map[line]
 
     def _random_allowed_style(self, line):
+        if not self.cap_map[line]: return None
         return random.choice(list(self.cap_map[line]))
 
     def _get_initial_style(self, line):
@@ -57,7 +58,7 @@ class ALNSOperator:
         return curve[-1][1]
 
     def initialize_solution(self):
-        """Creates the initial solution using the logic from the old code."""
+        """Creates the initial solution using greedy logic."""
         solution = {'assignment': {}}
         for l in self.input.set['setL']:
             allowed = self.cap_map[l]
@@ -77,18 +78,40 @@ class ALNSOperator:
         
         return self.repair_and_evaluate(solution)
 
-    def repair_and_evaluate(self, solution):
+    def perturb_solution(self, solution, perturbation_rate=0.3):
         """
-        The CORE logic from the old code. 
-        1. Fixes invalid assignments (Repair).
-        2. Simulates production (Evaluate).
+        Xáo trộn giải pháp (Restart Strategy helper).
+        Thay đổi ngẫu nhiên assignment để thoát khỏi cực trị địa phương.
+        """
+        new_sol = copy.deepcopy(solution)
+        assign = new_sol['assignment']
+        lines = list(self.input.set['setL'])
+        times = list(self.input.set['setT'])
+        
+        # Số lượng slot cần thay đổi
+        num_perturb = int(len(lines) * len(times) * perturbation_rate)
+        
+        for _ in range(num_perturb):
+            l = random.choice(lines)
+            t = random.choice(times)
+            # Gán lại một style ngẫu nhiên cho phép
+            new_style = self._random_allowed_style(l)
+            if new_style:
+                assign[(l, t)] = new_style
+                
+        # Sửa lỗi và tính lại chi phí
+        return self.repair_and_evaluate(new_sol)
+
+    def repair_and_evaluate(self, solution, best_cost_so_far=float('inf')):
+        """
+        CORE LOGIC: Repair + Simulation + Fast Fail.
+        best_cost_so_far: Dùng để cắt tỉa nhánh nếu chi phí vượt quá ngưỡng.
         """
         assignment = solution.get('assignment', {})
         
         # --- REPAIR: Fix invalid assignments ---
         for (l, t), s in list(assignment.items()):
             if not self._is_allowed(l, s):
-                # print(f'{(l,s)} is not allowed, repairing...')
                 assignment[(l, t)] = self._random_allowed_style(l)
         
         solution['assignment'] = assignment
@@ -118,9 +141,20 @@ class ALNSOperator:
 
         # Keep history of daily production by style so we can look back LT days
         daily_prod_history = defaultdict(lambda: defaultdict(float))
+        
+        # Ngưỡng cắt tỉa (Pruning threshold): nới lỏng 20% để cho phép khám phá
+        pruning_threshold = best_cost_so_far * 1.2
 
         # --- MAIN SIMULATION LOOP ---
         for t in sorted(self.input.set["setT"]):
+
+            # --- FAST FAIL CHECK ---
+            # Nếu chi phí hiện tại (Setup + Late - Reward) đã quá lớn, dừng lại.
+            # Lưu ý: Exp reward làm giảm chi phí, nên ta tính ước lượng sơ bộ.
+            current_estimated_cost = setup_cost + late_cost - exp_reward
+            if current_estimated_cost > pruning_threshold:
+                 solution['total_cost'] = float('inf')
+                 return solution
 
             # 1. Fabric Receipts
             for s in self.input.set["setS"]:
@@ -137,7 +171,7 @@ class ALNSOperator:
                 new_style = assignment.get((l, t))
                 work_day  = self.input.param["paramH"].get((l, t), 0) > 0
                 
-                if new_style is None: # Should be fixed by repair, but safety check
+                if new_style is None: 
                     st["up_exp"] = 0
                     continue
 
@@ -164,7 +198,7 @@ class ALNSOperator:
                     sam     = self.precomputed["style_sam"][new_style]
                     max_p   = (cap_min * eff) / sam
                     pot_prod[new_style].append({"line": l, "max_p": max_p})
-                    st["up_exp"] = 0 # Default, set to 1 if share is high enough
+                    st["up_exp"] = 0 
                 else:
                     st["up_exp"] = 0
 
@@ -183,7 +217,6 @@ class ALNSOperator:
                     for i in items:
                         share = actual_p * i["max_p"] / total_cap
                         solution["production"][(i["line"], s, t)] = share
-                        # Experience bump if “worked enough”
                         if share >= 0.5 * i["max_p"]:
                             line_states[i["line"]]["up_exp"] = 1
 
@@ -203,18 +236,3 @@ class ALNSOperator:
                 if backlog[s] > 1e-6:
                     late_cost += (backlog[s] *
                                 self.input.param["Plate"][s] *
-                                self._discount(t))
-
-        # --- FINALIZE ---
-        solution.update({
-            "final_backlog": backlog,
-            "total_setup":   setup_cost,
-            "total_late":    late_cost,
-            "total_exp":     exp_reward,
-            "total_cost":    setup_cost + late_cost - exp_reward
-        })
-
-        if move_type:
-            solution["type"] = move_type
-            
-        return solution
