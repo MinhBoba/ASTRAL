@@ -18,6 +18,18 @@ def get_dataframe_from_excel(file_path, sheet_name, header=0):
     try:
         # Dùng pandas đọc trực tiếp cho mạnh mẽ
         df = pd.read_excel(file_path, sheet_name=sheet_name, header=header)
+
+        # Chuẩn hoá tên cột: chuyển thành str, loại bỏ NBSP và khoảng trắng ngoài, rút gọn nhiều khoảng trắng
+        if df.columns is not None:
+            cols = (
+                df.columns.astype(str)
+                .str.replace('\xa0', ' ', regex=False)
+                .str.replace('\u200b', '', regex=False)
+                .str.replace('\s+', ' ', regex=True)
+                .str.strip()
+            )
+            df.columns = cols
+
         return df
     except ValueError as e:
         print(f"Cảnh báo: Không đọc được sheet '{sheet_name}'. Lỗi: {e}")
