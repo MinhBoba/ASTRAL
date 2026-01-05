@@ -3,13 +3,13 @@ pyomo>=6.7.0
 numpy>=1.24.0
 pandas>=2.0.0
 
-# Solvers (chọn một trong các options sau)
+# Solvers
 # Option 1: CPLEX (commercial, cần license)
 # cplex>=22.1.0
 
 # Option 2: GLPK (free, opensource)
-# Cài qua conda: conda install -c conda-forge glpk
-# Hoặc binary: https://www.gnu.org/software/glpk/
+# conda install -c conda-forge glpk
+# or binary: https://www.gnu.org/software/glpk/
 
 # Option 3: CBC (free, opensource)
 # pip install cylp
