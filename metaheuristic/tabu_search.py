@@ -23,7 +23,7 @@ class TabuSearchSolver:
         input_data,
         discount_alpha: float = 0.05,
         initial_line_df=None,
-        max_iter: int = 1000,
+        max_iter: int = 20000,
         tabu_tenure: int = 10,
         max_time: float = 1200,
         min_tenure: int = 5,
