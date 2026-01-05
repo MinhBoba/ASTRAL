@@ -184,4 +184,14 @@ class TabuSearchSolver:
             if self.no_improvement_counter >= self.increase_threshold:
                 if self.current_tenure < self.max_tenure:
                     self.current_tenure = min(self.max_tenure, self.current_tenure + 2)
-                    self._update_tabu_lis
+                    self._update_tabu_list_capacity()
+                    if self.verbose: print(f"  -> Không cải thiện. Nhiệm kỳ tăng lên: {self.current_tenure}")
+                self.no_improvement_counter = 0
+
+    def print_solution_summary(self, solution=None):
+        sol = solution or self.best_solution
+        if not sol: print("No solution."); return
+        
+        setup_cost = len(sol.get('changes', {})) * self.input.param['Csetup']
+        print(f"Tổng chi phí: {sol['total_cost']:,.2f}")
+        print(f"Setup Cost: {setup_cost:,.2f}")
