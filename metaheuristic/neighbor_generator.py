@@ -1,6 +1,6 @@
 """
 Neighbor generation strategies for Tabu Search.
-Includes traditional random moves and multi-objective intelligent moves.
+Includes traditional random moves and multi-objective moves.
 """
 
 import random
@@ -43,7 +43,7 @@ class NeighborGenerator:
             Current solution with 'assignment' key
         mo_probability : float
             Probability of generating multi-objective moves
-        evaluator : SolutionEvaluator
+        evaluator : ALNSOperator
             Evaluator instance to repair and evaluate solutions
 
         Returns
@@ -103,6 +103,7 @@ class NeighborGenerator:
                     min(self.input.set["setT"]),
                     max(self.input.set["setT"]) - block_size,
                 )
+                # Randomize a new style (might be suboptimal, ALNSOperator will evaluate)
                 new_style = self._random_allowed_style(l)
                 for t_offset in range(block_size):
                     t = start_t + t_offset
@@ -215,7 +216,7 @@ class NeighborGenerator:
             t1, t2 = random.sample(self.input.set["setT"], 2)
 
             # Only swap if styles are different
-            if current_assign[(l, t1)] != current_assign[(l, t2)]:
+            if current_assign.get((l, t1)) != current_assign.get((l, t2)):
                 new_assign = copy.deepcopy(current_assign)
                 new_assign[(l, t1)], new_assign[(l, t2)] = (
                     new_assign[(l, t2)],
@@ -300,7 +301,7 @@ class NeighborGenerator:
             for l in self.input.set["setL"]
             for t in self.input.set["setT"]
             if self._is_allowed(l, style_to_boost)
-            and assignment[(l, t)] != style_to_boost
+            and assignment.get((l, t)) != style_to_boost
         ]
 
         if potential:
