@@ -1,7 +1,7 @@
 import pandas as pd
 from collections import defaultdict
 import os
-
+from utils.excel_exporter import export_solution_to_excel 
 from utils.data_loader import InputData, get_dataframe_from_excel
 from utils.file_handler import save_metaheuristic_result
 from metaheuristic.tabu_search import TabuSearchSolver
@@ -56,6 +56,7 @@ def load_input(excel_path):
     unique_dates = sorted(df_t['Date'].dropna().unique())
     data.set['setT'] = list(range(1, len(unique_dates) + 1))
     date_map = {d: i+1 for i, d in enumerate(unique_dates)}
+    data.set['real_dates'] = unique_dates 
     
     data.param['paramH'] = defaultdict(float)
     for _, row in df_t.iterrows():
@@ -156,7 +157,7 @@ def load_input(excel_path):
     return data
 
 if __name__ == "__main__":
-    EXCEL_FILE = 'StandardInput.xlsx' # Rename your file to this
+    EXCEL_FILE = 'StandardInput.xlsx' 
     
     if os.path.exists(EXCEL_FILE):
         # 1. Load
@@ -170,5 +171,19 @@ if __name__ == "__main__":
         # 3. Save & Report
         save_metaheuristic_result(best_solution, filename="result.pkl", replace=True)
         solver.print_solution_summary()
+        
+        # Cập nhật lại list ngày thực tế nếu có trong input_data
+        # Nếu load_input chưa lưu 'real_dates', ta tạo giả lập hoặc sửa load_input như trên.
+        if 'real_dates' in input_data.set:
+            # Map index T (1, 2...) sang string ngày ("May 29")
+            # Hàm export cần sửa nhẹ để nhận label ngày, hoặc ta sửa input.set['setT'] tạm thời
+            # Tuy nhiên, cách tốt nhất là sửa file excel_exporter.py một chút để nhận mapping.
+            # Nhưng để đơn giản, ta format lại ngày thành string ngay đây:
+            date_labels = [d.strftime("%b %d") for d in input_data.set['real_dates']]
+            
+            pass
+        
+        export_solution_to_excel(best_solution, input_data, filename="Production_Plan_Report.xlsx")
+        
     else:
         print(f"File {EXCEL_FILE} not found.")
