@@ -2,7 +2,12 @@
 Utils package
 """
 from .data_loader import InputData, get_dataframe_from_excel
-from .file_handler import save_metaheuristic_result, load_metaheuristic_result
+from .file_handler import (
+    save_metaheuristic_result, 
+    load_metaheuristic_result,
+    save_model_solution,
+    load_model_solution
+)
 from .constraint_checker import find_violations
 
 __all__ = [
@@ -10,5 +15,7 @@ __all__ = [
     'get_dataframe_from_excel',
     'save_metaheuristic_result',
     'load_metaheuristic_result',
+    'save_model_solution',
+    'load_model_solution',
     'find_violations',
 ]
