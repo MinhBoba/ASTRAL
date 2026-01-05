@@ -31,8 +31,27 @@ def load_input(excel_path):
             for s in data.set['setS']:
                 data.param['paramY0'][(str(row['Line']), s)] = 1 if s == row['Current Style'] else 0
 
-    # 3. Time Horizon (Header is on row 2 -> index 1)
-    df_t = get_dataframe_from_excel(excel_path, 'line_date_input', header=1).dropna(subset=['Date', 'Line'])
+    # 3. Time Horizon: try to read with header=1 but be resilient if the real header is the first row
+    df_t = get_dataframe_from_excel(excel_path, 'line_date_input', header=1)
+
+    # If expected columns not found, check if the first data row contains header names
+    if not set(['Date', 'Line']).issubset(df_t.columns):
+        if not df_t.empty:
+            first_row_vals = df_t.iloc[0].astype(str).str.strip().tolist()
+            if 'Date' in first_row_vals and 'Line' in first_row_vals:
+                df_t.columns = first_row_vals
+                df_t = df_t[1:]
+            else:
+                # fallback: try reading with header=0
+                df_t_alt = get_dataframe_from_excel(excel_path, 'line_date_input', header=0)
+                if set(['Date', 'Line']).issubset(df_t_alt.columns):
+                    df_t = df_t_alt
+
+    if not set(['Date', 'Line']).issubset(df_t.columns):
+        print(f"Sheet 'line_date_input' columns: {list(df_t.columns)}")
+        raise KeyError("Expected columns 'Date' and 'Line' not found in 'line_date_input' sheet")
+
+    df_t = df_t.dropna(subset=['Date', 'Line'])
     df_t['Date'] = pd.to_datetime(df_t['Date'], errors='coerce').dt.date
     unique_dates = sorted(df_t['Date'].dropna().unique())
     data.set['setT'] = list(range(1, len(unique_dates) + 1))
