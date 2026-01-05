@@ -94,7 +94,7 @@ def load_input(excel_path):
     return data
 
 if __name__ == "__main__":
-    EXCEL_FILE = 'Input.xlsx' # Rename your file to this
+    EXCEL_FILE = 'StandardInput.xlsx' # Rename your file to this
     
     if os.path.exists(EXCEL_FILE):
         # 1. Load
