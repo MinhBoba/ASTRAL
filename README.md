@@ -1,6 +1,3 @@
-:
-
-```markdown
 # Production Scheduling with Learning Curves (Make-Color Model)
 
 ## 1. Project Overview
@@ -22,12 +19,21 @@ The system uses two approaches:
 
 ```text
 minhboba-astral/
-├── main.py                  # Entry Point
-├── metaheuristic/           # Tabu Search + ALNS Logic
+├── main.py                  # Entry Point (Data loading, Solver execution)
+├── metaheuristic/           # Optimization Logic
+│   ├── __init__.py
+│   ├── ALNS_operator.py     # Simulation Evaluator
+│   ├── neighbor_generator.py# Move Operators
+│   ├── oscillation_strategy.py
+│   └── tabu_search.py       # Main Loop
 ├── models/                  # Pyomo MILP Model
-├── utils/                   # Data Loading & Reporting
+│   ├── init.py
+│   └── pyomo_model.py
+├── utils/                   # Utilities
+│   ├── data_loader.py       # Excel Reader
+│   ├── excel_exporter.py    # Report Generator
+│   └── file_handler.py
 └── Small.xlsx               # Input Data
-```
 
 ---
 
