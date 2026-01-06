@@ -145,33 +145,36 @@ def load_input(excel_path):
                 data.param['paramLexp'][(l, s)] = 0.0
 
     # ==========================================
-    # 6. LEARNING CURVE (QUAN TRỌNG: ĐỌC TỪ EXCEL)
+    # 6. LEARNING CURVE (Đã dùng Smart Loader)
     # ==========================================
-    # Cố gắng đọc sheet 'learning_curve_input'
-    df_lc = get_dataframe_from_excel(excel_path, 'learning_curve_input', header=0)
-    
-    # Kiểm tra xem có dữ liệu hợp lệ không
-    has_lc_data = False
-    if not df_lc.empty:
-        # Chuẩn hóa tên cột để tránh lỗi case sensitive hoặc khoảng trắng
+    # Thử tìm trong các sheet tên phổ biến
+    lc_sheets = ['learning_curve_input', 'Learning Curve', 'LC_Input', 'Sheet1']
+    df_lc = pd.DataFrame()
+
+    for sheet in lc_sheets:
+        # Gọi loader thông minh: Tự tìm dòng chứa cột 'Experience' và 'Efficiency'
+        df_lc = get_dataframe_from_excel(
+            excel_path, 
+            sheet, 
+            expected_columns=['Experience', 'Efficiency'], 
+            autodetect_header=True
+        )
+        if not df_lc.empty:
+            break
+            
+    if not df_lc.empty and {'Experience', 'Efficiency'}.issubset(df_lc.columns):
+        # Chuẩn hóa tên cột lần nữa cho chắc (Loader đã clean rồi nhưng check lại title case)
         df_lc.columns = df_lc.columns.str.strip().str.title()
-        if {'Experience', 'Efficiency'}.issubset(df_lc.columns):
-            df_lc = df_lc.sort_values('Experience') # Sắp xếp tăng dần theo ngày
-            
-            breakpoints = list(range(1, len(df_lc) + 1))
-            data.set['setBP'] = breakpoints
-            
-            # Map dữ liệu vào param
-            data.param['paramXp'] = dict(zip(breakpoints, df_lc['Experience'].astype(float)))
-            data.param['paramFp'] = dict(zip(breakpoints, df_lc['Efficiency'].astype(float)))
-            
-            print("-> Đã load Learning Curve từ Excel.")
-            has_lc_data = True
-    
-    if not has_lc_data:
-        print("-> Cảnh báo: Không tìm thấy sheet 'learning_curve_input' hoặc cột sai tên.")
-        print("-> Sử dụng Learning Curve mặc định (Fast Growth).")
-        # Sử dụng dữ liệu mẫu từ hình ảnh bạn cung cấp
+        
+        df_lc = df_lc.dropna(subset=['Experience', 'Efficiency']).sort_values('Experience')
+        breakpoints = list(range(1, len(df_lc) + 1))
+        
+        data.set['setBP'] = breakpoints
+        data.param['paramXp'] = dict(zip(breakpoints, df_lc['Experience'].astype(float)))
+        data.param['paramFp'] = dict(zip(breakpoints, df_lc['Efficiency'].astype(float)))
+        print("-> Đã load Learning Curve thành công.")
+    else:
+        print("-> Cảnh báo: Không tìm thấy dữ liệu Learning Curve. Sử dụng mặc định.")
         data.set['setBP'] = [1, 2, 3]
         data.param['paramXp'] = {1: 1.0, 2: 10.0, 3: 17.0}
         data.param['paramFp'] = {1: 0.32, 2: 0.66, 3: 0.80}
@@ -209,14 +212,14 @@ if __name__ == "__main__":
         print("\n--- BẮT ĐẦU TỐI ƯU HÓA ---")
         # max_iter: Số vòng lặp tối đa
         # max_time: Thời gian chạy tối đa (giây)
-        solver = TabuSearchSolver(input_data, max_iter=20000, tabu_tenure=15, max_time=600)
+        solver = TabuSearchSolver(input_data, max_iter=5000, tabu_tenure=15, max_time=600)
         best_solution = solver.solve()
         
         # 3. Save & Report
         os.makedirs(RESULT_DIR, exist_ok=True)
         
         # Lưu kết quả dạng nhị phân (pickle) để dùng lại nếu cần
-        save_metaheuristic_result(best_solution, filename="result.pkl", folder=RESULT_DIR, replace=True)
+        save_metaheuristic_result(best_solution, filename = "result.pkl", folder=RESULT_DIR)
         
         # In tóm tắt ra màn hình
         solver.print_solution_summary()
