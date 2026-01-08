@@ -40,7 +40,6 @@ def load_input(excel_path):
                 data.param['paramY0'][(line_str, s)] = 1 if s == current_style else 0
 
     # 3. TIME HORIZON (Lịch làm việc)
-    # Cố gắng đọc header ở dòng 2 (index 1), nếu không được thì thử dòng 1 (index 0)
     df_t = get_dataframe_from_excel(excel_path, 'line_date_input', header=1)
 
     # Kiểm tra cột, nếu không khớp thì thử đọc lại với header=0
@@ -148,8 +147,7 @@ def load_input(excel_path):
             else:
                 data.param['paramLexp'][(l, s)] = 0.0
 
-    # 6. LEARNING CURVE (Đã dùng Smart Loader)
-    # Thử tìm trong các sheet tên phổ biến
+    # 6. LEARNING CURVE (tạo bảng và tra bảng -> O(1))
     lc_sheets = ['learning_curve_input', 'Learning Curve', 'LC_Input', 'Sheet1']
     df_lc = pd.DataFrame()
 
@@ -165,7 +163,7 @@ def load_input(excel_path):
             break
             
     if not df_lc.empty and {'Experience', 'Efficiency'}.issubset(df_lc.columns):
-        # Chuẩn hóa tên cột lần nữa cho chắc (Loader đã clean rồi nhưng check lại title case)
+        # Chuẩn hóa tên cột lần nữa cho chắc
         df_lc.columns = df_lc.columns.str.strip().str.title()
         
         df_lc = df_lc.dropna(subset=['Experience', 'Efficiency']).sort_values('Experience')
@@ -176,7 +174,7 @@ def load_input(excel_path):
         data.param['paramFp'] = dict(zip(breakpoints, df_lc['Efficiency'].astype(float)))
         print("-> Đã load Learning Curve thành công.")
     else:
-        print("-> Cảnh báo: Không tìm thấy dữ liệu Learning Curve. Sử dụng mặc định.")
+        print("-> Không tìm thấy dữ liệu Learning Curve. Sử dụng mặc định.")
         data.set['setBP'] = [1, 2, 3]
         data.param['paramXp'] = {1: 1.0, 2: 10.0, 3: 17.0}
         data.param['paramFp'] = {1: 0.32, 2: 0.66, 3: 0.80}
@@ -186,8 +184,8 @@ def load_input(excel_path):
     data.set['setSP'] = [(s1, s2) for s1 in data.set['setS'] for s2 in data.set['setS']]
     
     # Tồn kho ban đầu
-    data.param['paramI0fabric'] = {s: 1e6 for s in data.set['setS']} # Vải vô hạn (giả định nếu thiếu input)
-    data.param['paramI0product'] = {s: 0 for s in data.set['setS']}
+    data.param['paramI0fabric'] = {s: 0 for s in data.set['setS']} # vải ban đầu
+    data.param['paramI0product'] = {s: 0 for s in data.set['setS']} # số hàng ban đầu
     data.param['paramB0'] = {s: 0 for s in data.set['setS']} # Backlog ban đầu
     
     # Chi phí
