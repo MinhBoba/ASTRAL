@@ -77,38 +77,52 @@ def load_input(excel_path):
         if l_str in data.set['setL'] and row['Date'] in date_map:
             data.param['paramH'][(l_str, date_map[row['Date']])] = float(row.get('Working Hour', 0))
 
-    # 4. DEMAND & FABRIC (Đơn hàng & Vải)
+# 4. DEMAND & FABRIC (Đơn hàng & Vải)
     df_d = get_dataframe_from_excel(excel_path, 'order_input', header=0)
     data.param['paramD'] = defaultdict(float)
     data.param['paramF'] = defaultdict(float)
     
-    # Helper để parse ngày an toàn từ dòng dữ liệu
+    # Helper để parse ngày an toàn
     def parse_date(val):
         dt = pd.to_datetime(val, errors='coerce')
         if pd.isna(dt): return None
-        if hasattr(dt, 'date'): return dt.date()
-        if hasattr(dt, 'dt'): return dt.dt.date
-        return None
+        return dt.date()
 
     last_t = data.set['setT'][-1] if data.set['setT'] else 1
 
     for _, row in df_d.iterrows():
-        s = row.get('Style2') # Tên cột dựa theo file mẫu của bạn
+        s = str(row.get('Style2'))
         qty = row.get('Sum')
         
         if s in data.set['setS'] and pd.notna(qty):
             qty_val = float(qty)
             
-            # Xử lý Demand (D) - Ngày xuất hàng (Exf-SX)
+            # --- 4.1 Xử lý Demand (D) ---
             d_date = parse_date(row.get('Exf-SX'))
-            t_d = date_map.get(d_date, last_t) # Nếu ngày nằm ngoài lịch, gán vào ngày cuối
+            t_d = date_map.get(d_date, last_t)
             data.param['paramD'][(s, t_d)] += qty_val
             
-            # Xử lý Fabric (F) - Ngày vải về (Fabric start ETA RG)
-            f_date = parse_date(row.get('Fabric start ETA RG'))
-            t_f = date_map.get(f_date, last_t)
-            data.param['paramF'][(s, t_f)] += qty_val
-
+            # --- 4.2 Xử lý Fabric (F) theo tỷ lệ 50% ngày 1 và 50% ngày 2 ---
+            f_start_date = parse_date(row.get('Fabric start ETA RG'))
+            t_start = date_map.get(f_start_date)
+            
+            if t_start:
+                # Ngày 1: Nhận 50%
+                data.param['paramF'][(s, t_start)] += qty_val * 0.5
+                
+                # Ngày 2: Nhận 50% còn lại
+                t_next = t_start + 1
+                if t_next <= last_t:
+                    data.param['paramF'][(s, t_next)] += qty_val * 0.5
+                    print(f"-> Style {s}: Vải về 50% tại T{t_start} và 50% tại T{t_next}")
+                else:
+                    # Trường hợp ngày bắt đầu là ngày cuối cùng của lịch, dồn 100% vào t_start
+                    data.param['paramF'][(s, t_start)] += qty_val * 0.5
+                    print(f"-> Style {s}: Do T{t_start} là ngày cuối, dồn 100% vải vào ngày này")
+            else:
+                # Nếu không tìm thấy ngày bắt đầu, mặc định vải có sẵn ở ngày cuối
+                data.param['paramF'][(s, last_t)] += qty_val
+                
     # 5. CAPABILITIES & LEARNING PARAMETERS
     df_cap = get_dataframe_from_excel(excel_path, 'enable_style_line_input', header=0)
     df_lexp = get_dataframe_from_excel(excel_path, 'line_style_input', header=1)
