@@ -12,9 +12,7 @@ def load_input(excel_path):
     print(f"Loading data from {excel_path}...")
     data = InputData()
     
-    # ==========================================
     # 1. STYLES (Danh sách mã hàng & SAM)
-    # ==========================================
     df_s = get_dataframe_from_excel(excel_path, 'style_input', header=0).dropna(subset=['Style'])
     data.set['setS'] = df_s['Style'].astype(str).unique().tolist()
     
@@ -26,9 +24,7 @@ def load_input(excel_path):
     # Giá phạt trễ mặc định là 50 nếu không có
     data.param['Plate'] = {s: 50.0 for s in data.set['setS']}
 
-    # ==========================================
     # 2. LINES (Chuyền may & Nhân sự)
-    # ==========================================
     df_l = get_dataframe_from_excel(excel_path, 'line_input', header=0).dropna(subset=['Line'])
     data.set['setL'] = df_l['Line'].astype(str).unique().tolist()
     data.param['paramN'] = df_l.set_index('Line')['Sewer'].to_dict()
@@ -43,9 +39,7 @@ def load_input(excel_path):
             for s in data.set['setS']:
                 data.param['paramY0'][(line_str, s)] = 1 if s == current_style else 0
 
-    # ==========================================
     # 3. TIME HORIZON (Lịch làm việc)
-    # ==========================================
     # Cố gắng đọc header ở dòng 2 (index 1), nếu không được thì thử dòng 1 (index 0)
     df_t = get_dataframe_from_excel(excel_path, 'line_date_input', header=1)
 
@@ -83,9 +77,7 @@ def load_input(excel_path):
         if l_str in data.set['setL'] and row['Date'] in date_map:
             data.param['paramH'][(l_str, date_map[row['Date']])] = float(row.get('Working Hour', 0))
 
-    # ==========================================
     # 4. DEMAND & FABRIC (Đơn hàng & Vải)
-    # ==========================================
     df_d = get_dataframe_from_excel(excel_path, 'order_input', header=0)
     data.param['paramD'] = defaultdict(float)
     data.param['paramF'] = defaultdict(float)
@@ -117,9 +109,7 @@ def load_input(excel_path):
             t_f = date_map.get(f_date, last_t)
             data.param['paramF'][(s, t_f)] += qty_val
 
-    # ==========================================
     # 5. CAPABILITIES & LEARNING PARAMETERS
-    # ==========================================
     df_cap = get_dataframe_from_excel(excel_path, 'enable_style_line_input', header=0)
     df_lexp = get_dataframe_from_excel(excel_path, 'line_style_input', header=1)
     
@@ -144,9 +134,7 @@ def load_input(excel_path):
             else:
                 data.param['paramLexp'][(l, s)] = 0.0
 
-    # ==========================================
     # 6. LEARNING CURVE (Đã dùng Smart Loader)
-    # ==========================================
     # Thử tìm trong các sheet tên phổ biến
     lc_sheets = ['learning_curve_input', 'Learning Curve', 'LC_Input', 'Sheet1']
     df_lc = pd.DataFrame()
@@ -179,9 +167,7 @@ def load_input(excel_path):
         data.param['paramXp'] = {1: 1.0, 2: 10.0, 3: 17.0}
         data.param['paramFp'] = {1: 0.32, 2: 0.66, 3: 0.80}
 
-    # ==========================================
     # 7. OTHER DEFAULTS
-    # ==========================================
     data.set['setSsame'] = [] # Cặp style giống nhau (giữ nguyên kinh nghiệm khi chuyển đổi)
     data.set['setSP'] = [(s1, s2) for s1 in data.set['setS'] for s2 in data.set['setS']]
     
