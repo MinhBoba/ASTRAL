@@ -44,7 +44,6 @@ def get_dataframe_from_excel(
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=header)
             return clean_column_names(df)
 
-        # --- LOGIC TỰ ĐỘNG DÒ HEADER ---
         # 1. Đọc dữ liệu thô (không header)
         df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
         

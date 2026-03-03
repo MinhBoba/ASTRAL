@@ -113,11 +113,9 @@ def load_input(excel_path):
                 t_next = t_start + 1
                 if t_next <= last_t:
                     data.param['paramF'][(s, t_next)] += qty_val * 0.5
-                    print(f"-> Style {s}: Vải về 50% tại T{t_start} và 50% tại T{t_next}")
                 else:
                     # Trường hợp ngày bắt đầu là ngày cuối cùng của lịch, dồn 100% vào t_start
                     data.param['paramF'][(s, t_start)] += qty_val * 0.5
-                    print(f"-> Style {s}: Do T{t_start} là ngày cuối, dồn 100% vải vào ngày này")
             else:
                 # Nếu không tìm thấy ngày bắt đầu, mặc định vải có sẵn ở ngày cuối
                 data.param['paramF'][(s, last_t)] += qty_val
@@ -190,7 +188,7 @@ def load_input(excel_path):
     
     # Chi phí
     data.param['Csetup'] = 150.0  # Chi phí đổi mã
-    data.param['Rexp'] = 1.0      # Thưởng tích lũy kinh nghiệm
+    data.param['Rexp'] = 10.0      # Thưởng tích lũy kinh nghiệm
     
     return data
 
@@ -207,7 +205,7 @@ if __name__ == "__main__":
             exit(1)
         
         # 2. Solve (Chạy thuật toán)
-        print("\n--- BẮT ĐẦU TỐI ƯU HÓA ---")
+        print("\n--- Run ---")
         # max_iter: Số vòng lặp tối đa
         # max_time: Thời gian chạy tối đa (giây)
         solver = TabuSearchSolver(input_data, max_iter=5000, tabu_tenure=15, max_time=600)
