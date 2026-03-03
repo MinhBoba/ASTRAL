@@ -3,34 +3,34 @@ import random
 
 class NeighborGenerator:
     """
-    Sinh láng giềng dựa trên xác suất thích nghi (Simple Adaptive).
-    Tương thích với ALNSOperator tối ưu (dùng ID thay vì String).
+    Generate neighbors based on simple adaptive probabilities.
+    Compatible with the optimized ALNSOperator (uses IDs instead of strings).
     """
 
     def __init__(self, input_data, cap_map):
         self.input = input_data
-        # cap_map ở đây chỉ dùng để tham chiếu list lines/times
+        # cap_map here is only used as a reference for lines/times lists
         self.lines = list(self.input.set['setL'])
         self.times = sorted(list(self.input.set['setT']))
 
     def generate_neighbors(self, base_solution, mo_probability, evaluator):
         """
-        Sinh danh sách các giải pháp láng giềng.
-        
+        Generate a list of neighboring solutions.
+
         Parameters
         ----------
         mo_probability : float
-            Xác suất để kích hoạt các toán tử Multi-Objective (thông minh).
+            Probability of activating smart multi-objective operators.
         evaluator : ALNSOperator
-            Dùng để kiểm tra ràng buộc (bitmask) và tính toán chi phí (fast fail).
+            Used to check constraints (bitmask) and compute cost (fast fail).
         """
         neighbors = []
         
-        # 1. Luôn sinh các láng giềng truyền thống (Swap, Reassign)
+        # 1. always generate traditional neighbors (swap, reassign)
         traditional = self._generate_traditional_neighbors(base_solution, evaluator)
         neighbors.extend(traditional)
         
-        # 2. Sinh láng giềng thông minh (MO) dựa trên xác suất
+        # 2. generate smart (MO) neighbors probabilistically
         if random.random() < mo_probability:
             mo_neighbors = self._generate_multi_objective_neighbors(base_solution, evaluator)
             neighbors.extend(mo_neighbors)
@@ -48,7 +48,7 @@ class NeighborGenerator:
         for _ in range(num_neighbors):
             move_type = random.choice(['swap', 'reassign_block', 'reassign_single'])
             
-            # Shallow copy là đủ nhanh
+            # shallow copy is fast enough
             new_assign = copy.copy(base_assign)
             l = random.choice(self.lines)
 
@@ -64,7 +64,7 @@ class NeighborGenerator:
                 block_size = random.randint(2, max(2, len(self.times) // 4))
                 start_idx = random.randint(0, len(self.times) - block_size)
                 
-                # Gọi evaluator để lấy random ID hợp lệ (O(1))
+                # ask evaluator for a random allowed style ID (O(1))
                 new_style_id = evaluator._random_allowed_style_id(l)
                 
                 if new_style_id is not None:
@@ -83,7 +83,7 @@ class NeighborGenerator:
                     changed = True
 
             if changed:
-                # Không cần tag origin_operator nữa vì đã bỏ RL
+                # no need to tag origin_operator anymore since RL was removed
                 neighbors.append(evaluator.repair_and_evaluate({'assignment': new_assign}))
 
         return neighbors
@@ -94,16 +94,16 @@ class NeighborGenerator:
     def _generate_multi_objective_neighbors(self, base_solution, evaluator):
         neighbors = []
         
-        # 1. Giảm chi phí chuyển đổi (Setup Reduction)
+        # 1. reduce setup cost (Setup Reduction)
         neighbors.extend(self._gen_setup_reduction(base_solution, evaluator))
         
-        # 2. Giảm phạt trễ (Late Cost Reduction)
+        # 2. reduce late penalty (Late Cost Reduction)
         neighbors.extend(self._gen_late_reduction(base_solution, evaluator))
         
-        # 3. Cân bằng (Balanced - Swap có chủ đích)
+        # 3. balance (purposeful swap)
         neighbors.extend(self._gen_balanced(base_solution, evaluator))
         
-        # Đánh dấu là MO để Tabu Search biết đường thống kê
+        # mark as MO so Tabu Search can track stats
         for n in neighbors:
             n['type'] = 'mo_move'
             
@@ -118,11 +118,11 @@ class NeighborGenerator:
             segments = self._find_short_segments(l, current_assign)
             if not segments: continue
             
-            # Thử nối 2 segment ngắn ngẫu nhiên
+            # try connecting two random short segments
             for segment in random.sample(segments, min(len(segments), 2)):
                 dominant_id = self._get_dominant_neighbor_style(l, segment, current_assign)
                 
-                # Check ID hợp lệ bằng bitmask của evaluator
+                # check ID validity using evaluator bitmask
                 if dominant_id is not None and evaluator._is_allowed(l, dominant_id):
                     new_assign = copy.copy(current_assign)
                     for t in segment['periods']:
@@ -136,20 +136,20 @@ class NeighborGenerator:
         moves = []
         current_assign = base_solution['assignment']
         
-        # Tìm style (ID) bị backlog
+        # find style IDs with backlog
         high_risk_ids = self._identify_high_risk_styles(base_solution)
         if not high_risk_ids: return []
 
-        # Lấy top 3 style trễ nhất
+        # take top 3 most delayed styles
         for s_id in high_risk_ids[:3]:
-            # Tìm các vị trí khả dĩ để chèn
+            # find potential slots to insert
             valid_slots = [
                 (l, t) for l in self.lines for t in self.times
                 if evaluator._is_allowed(l, s_id) and current_assign.get((l, t)) != s_id
             ]
             
             if valid_slots:
-                # Chèn thử vào 3 vị trí ngẫu nhiên
+                # try inserting into 3 random positions
                 for _ in range(min(3, len(valid_slots))):
                     l, t = random.choice(valid_slots)
                     new_assign = copy.copy(current_assign)
@@ -161,12 +161,12 @@ class NeighborGenerator:
         moves = []
         current_assign = base_solution['assignment']
         
-        for _ in range(5): # Thử 5 lần swap chiến lược
+        for _ in range(5): # attempt 5 strategic swaps
             l = random.choice(self.lines)
             if len(self.times) < 2: continue
             t1, t2 = random.sample(self.times, 2)
             
-            # Chỉ swap nếu khác nhau
+            # only swap if different
             if current_assign[(l, t1)] != current_assign[(l, t2)]:
                 new_assign = copy.copy(current_assign)
                 new_assign[(l, t1)], new_assign[(l, t2)] = new_assign[(l, t2)], new_assign[(l, t1)]
@@ -188,7 +188,7 @@ class NeighborGenerator:
             else:
                 current_segment.append(t)
         if current_segment: segments.append({'style': current_style, 'periods': current_segment})
-        # Lọc các đoạn ngắn <= 3 ngày
+        # filter segments of length <= 3 days
         return [s for s in segments if len(s['periods']) <= 3]
 
     def _get_dominant_neighbor_style(self, line, segment, assignment):
@@ -206,9 +206,9 @@ class NeighborGenerator:
         return prev if prev is not None else nxt
 
     def _identify_high_risk_styles(self, solution):
-        # Trả về list ID style
+        # return list of style IDs
         backlog = solution.get('final_backlog', {})
         if not backlog: return []
-        # Sắp xếp giảm dần backlog
+        # sort backlog descending
         sorted_ids = sorted(backlog.keys(), key=lambda s: backlog[s], reverse=True)
         return [s for s in sorted_ids if backlog[s] > 0]

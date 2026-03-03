@@ -10,13 +10,13 @@ class StrategicOscillationHandler:
 
     def explore_infeasible_region(self, current_solution):
         """
-        [RELAX] Tạo ra giải pháp vi phạm ràng buộc.
-        Mục tiêu: Đẩy các style đang bị trễ (backlog) vào lịch sản xuất bất chấp capability.
+        [RELAX] Generate a solution that violates constraints.
+        Objective: force backlog styles into the production schedule regardless of capability.
         """
         shaken_solution = copy.deepcopy(current_solution)
         assignment = shaken_solution['assignment']
         
-        # Lấy danh sách style đang bị backlog (đổi tên sang ID)
+        # collect list of backlog styles (convert to IDs)
         backlog_map = current_solution.get('final_backlog', {})
         high_risk_ids = []
         for s_name, qty in backlog_map.items():
@@ -25,12 +25,12 @@ class StrategicOscillationHandler:
                 if s_id is not None:
                     high_risk_ids.append(s_id)
         
-        # Nếu không có backlog thì quậy ngẫu nhiên
+        # if no backlog, random perturbation to shake things up
         if not high_risk_ids:
             return self._random_perturbation(shaken_solution)
 
-        # Ép style bị trễ vào các vị trí ngẫu nhiên (Infeasible Injection)
-        # Số lượng thay đổi khoảng 5-8% tổng số slot
+        # force late styles into random slots (Infeasible Injection)
+        # change about 5-8% of total slots
         num_changes = max(5, int(len(self.lines) * len(self.times) * 0.08))
         
         for _ in range(num_changes):
@@ -38,13 +38,13 @@ class StrategicOscillationHandler:
             t = random.choice(self.times)
             s_forced = random.choice(high_risk_ids)
             
-            # Gán trực tiếp, bỏ qua kiểm tra _is_allowed
+            # assign directly, skip _is_allowed check
             assignment[(l, t)] = s_forced
             
         return shaken_solution
 
     def _random_perturbation(self, solution):
-        """Đảo lộn ngẫu nhiên khi không có backlog để phá vỡ cấu trúc hiện tại."""
+        """Randomly shuffle when there is no backlog to break the current structure."""
         assignment = solution['assignment']
         all_style_ids = list(self.evaluator.style_to_id.values())
         
@@ -57,21 +57,21 @@ class StrategicOscillationHandler:
 
     def aggressive_repair(self, infeasible_solution):
         """
-        [REPAIR] Sửa chữa quyết liệt để đưa giải pháp về khả thi.
-        Logic: Nếu Line A giữ Style X (sai), tìm Line B (đúng) để swap X sang,
-        kể cả khi phải đẩy Style Y của Line B ra ngoài.
+        [REPAIR] Aggressively repair to restore feasibility.
+        Logic: if Line A holds style X (illegal), find Line B (legal) to swap X to,
+        even if that means pushing Line B's style Y out.
         """
         repaired_assign = copy.deepcopy(infeasible_solution['assignment'])
         
-        # Duyệt qua toàn bộ lưới
+        # iterate over the entire grid
         for l in self.lines:
             for t in self.times:
                 s_id = repaired_assign.get((l, t))
                 
-                # Nếu gặp vị trí vi phạm (Line l không may được Style s_id)
+                # if we encounter a violation (Line l assigned style s_id not allowed)
                 if s_id is not None and not self.evaluator._is_allowed(l, s_id):
                     
-                    # Tìm "cứu viện": Các line khác có thể may s_id tại thời điểm t
+                    # find "reinforcements": other lines that can do s_id at time t
                     candidates = [
                         cl for cl in self.lines 
                         if cl != l and self.evaluator._is_allowed(cl, s_id)
@@ -79,16 +79,16 @@ class StrategicOscillationHandler:
                     
                     fixed = False
                     if candidates:
-                        # Chọn ngẫu nhiên một người cứu viện
+                        # randomly pick a reinforcer
                         l_target = random.choice(candidates)
                         s_target_current = repaired_assign.get((l_target, t))
                         
                         # -- SWAP --
-                        # 1. Đưa hàng sai (s_id) sang chỗ đúng (l_target)
+                        # 1. move the incorrect item (s_id) to the correct line (l_target)
                         repaired_assign[(l_target, t)] = s_id
                         
-                        # 2. Xử lý hàng bị đẩy ra (s_target_current)
-                        # Nếu l làm được s_target_current thì đổi chéo, không thì random
+                        # 2. handle the displaced style (s_target_current)
+                        # if line l can do s_target_current then swap, otherwise random
                         if s_target_current is not None and self.evaluator._is_allowed(l, s_target_current):
                             repaired_assign[(l, t)] = s_target_current
                         else:
@@ -97,8 +97,8 @@ class StrategicOscillationHandler:
                         fixed = True
                     
                     if not fixed:
-                        # Nếu không ai cứu được, đành xóa style vi phạm đi, gán style random hợp lệ cho l
+                        # if no one can rescue, remove violating style and assign a random allowed one
                         repaired_assign[(l, t)] = self.evaluator._random_allowed_style_id(l)
 
-        # Tính toán lại chi phí sau khi đã sửa xong cấu trúc
+        # recompute cost after structure has been fixed
         return self.evaluator.repair_and_evaluate({'assignment': repaired_assign})

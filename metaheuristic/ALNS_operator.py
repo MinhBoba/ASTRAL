@@ -6,10 +6,10 @@ import math
 
 class ALNSOperator:
     """
-    Evaluator & Repairer tối ưu hóa:
-    1. Integer ID Mapping: Tối ưu hiệu năng.
-    2. Efficiency Lookup Table: Tra bảng thay vì tính toán O(1).
-    3. Strict Material Logic: Xử lý triệt để Trailing Zero & Idle Switch.
+    Optimized evaluator & repairer:
+    1. Integer ID mapping for performance.
+    2. Efficiency lookup table: lookup instead of O(1) calculation.
+    3. Strict material logic: handle trailing zero and idle switch comprehensively.
     """
 
     def __init__(self, input_data, cap_map, discount_alpha):
@@ -30,7 +30,7 @@ class ALNSOperator:
             self.line_allowed_lists[l] = ids
 
         # --- 3. Efficiency Lookup Table (Tạo bảng tra cứu) ---
-        self.max_lookup_day = 2000 # Đủ lớn cho số ngày kinh nghiệm
+        self.max_lookup_day = 2000 # large enough for number of experience days
         self.efficiency_table = self._build_efficiency_lookup()
 
         # --- 4. Setup Fast Fail & Precompute ---
@@ -44,7 +44,7 @@ class ALNSOperator:
             self.pruning_cutoff = best_cost * 1.2
 
     def _build_efficiency_lookup(self):
-        """Tính trước Efficiency cho mọi mức kinh nghiệm."""
+        """Precompute efficiency for all experience levels."""
         table = {}
         breakpoints = sorted(self.input.set['setBP'])
         if not breakpoints: return {i: 1.0 for i in range(self.max_lookup_day + 1)}
@@ -103,7 +103,7 @@ class ALNSOperator:
         return None
 
     def initialize_solution(self):
-        # (Giữ nguyên logic khởi tạo như cũ)
+        # (keep initialization logic as before)
         solution = {'assignment': {}}
         demand_by_id_time = {}
         for (s_name, t), val in self.input.param['paramD'].items():
@@ -126,7 +126,7 @@ class ALNSOperator:
 
     def repair_and_evaluate(self, solution):
         """
-        Vòng lặp mô phỏng chính với Logic kiểm tra tồn kho chặt chẽ.
+        Main simulation loop with strict inventory-check logic.
         """
         assignment = solution.get('assignment', {})
         
@@ -223,13 +223,13 @@ class ALNSOperator:
                 
                 has_material = inv_fab[proposed_style] > 1e-6
                 
-                # Biến cờ: Có phải là ngồi chờ hợp lệ (Bridging) không?
+                # flag: is this a valid wait/bridging?
                 is_valid_bridge = False
                 
                 if not has_material:
-                    # Kiểm tra xem có phải đang chờ nguyên liệu không
-                    # Điều kiện chờ: Style giống hôm qua VÀ Style giống ngày mai
-                    # (Nghĩa là kẹp giữa 2 ngày làm việc cùng 1 mã)
+                    # check if currently waiting for material
+                    # waiting condition: style same as yesterday AND same as tomorrow
+                    # (meaning sandwiched between two working days with the same style)
                     prev_is_same = (st["current_style"] == proposed_style)
                     
                     next_is_same = False
@@ -239,24 +239,24 @@ class ALNSOperator:
                         if assignment.get((l, next_t)) == proposed_style:
                             next_is_same = True
                     
-                    # Chỉ cho phép Qty=0 nếu là Bridging (Prev=Same & Next=Same)
+                    # only allow Qty=0 if bridging (Prev=Same & Next=Same)
                     if prev_is_same and next_is_same:
                         is_valid_bridge = True
 
-                # XỬ LÝ QUYẾT ĐỊNH
+                # DECISION HANDLING
                 final_style = proposed_style
                 
                 if not has_material and not is_valid_bridge:
-                    # VI PHẠM: Hết hàng nhưng không phải Bridging -> PHẢI ĐỔI MÃ
-                    # (Đây là fix cho Trailing Zero và Idle Switch)
+                    # VIOLATION: out of stock but not bridging -> MUST CHANGE STYLE
+                    # (this is a fix for Trailing Zero and Idle Switch)
                     
-                    # 1. Ưu tiên: Giữ mã cũ (nếu có hàng) để tránh Setup
+                    # 1. priority: keep old style (if inventory) to avoid setup
                     if st["current_style"] is not None and inv_fab[st["current_style"]] > 1e-6:
                          final_style = st["current_style"]
                     else:
-                        # 2. Tìm bất kỳ mã nào khác có hàng trong danh sách cho phép
+                        # 2. find any other allowed style with inventory
                         candidates = self.line_allowed_lists[l]
-                        # Shuffle để tránh thiên vị
+                        # shuffle to avoid bias
                         candidates_shuffled = list(candidates)
                         random.shuffle(candidates_shuffled)
                         
@@ -267,11 +267,11 @@ class ALNSOperator:
                                 found_alt = True
                                 break
                         
-                        # Nếu cùng đường (không mã nào có hàng), đành chấp nhận Qty=0 trên mã cũ
+                        # if tied (no style has inventory), accept Qty=0 on old style
                         if not found_alt and st["current_style"] is not None:
                              final_style = st["current_style"]
 
-                    # Update Assignment để Look-ahead các ngày sau thấy sự thay đổi này
+                    # update assignment so look-ahead days see this change
                     assignment[(l, t)] = final_style
 
                 # ==========================================================
@@ -320,7 +320,7 @@ class ALNSOperator:
                     for i in items:
                         share = actual_p * i["max_p"] / total_cap
                         solution["production"][(i["line"], s_id, t)] = share
-                        # Exp Gain Rule: Làm > 50% năng lực mới được cộng exp
+                        # Exp Gain Rule: only add exp if >50% capacity produced
                         if share >= 0.5 * i["max_p"]:
                             line_states[i["line"]]["up_exp"] = 1
 

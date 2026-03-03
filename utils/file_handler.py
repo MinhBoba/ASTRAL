@@ -3,7 +3,7 @@ import json
 import os
 import datetime
 
-# Thử import Pyomo, nếu không có thì vẫn chạy được Metaheuristic
+# attempt to import Pyomo; metaheuristic can still run without it
 try:
     import pyomo.environ as pyo
     from pyomo.environ import value
@@ -14,7 +14,7 @@ except ImportError:
 # --- GENERAL HANDLERS (JSON & PICKLE) ---
 
 def json_converter(o):
-    """Helper để convert các kiểu dữ liệu datetime/numpy khi lưu JSON."""
+    """Helper to convert datetime/numpy types when saving JSON."""
     if isinstance(o, (datetime.date, datetime.datetime)):
         return o.isoformat()
     if hasattr(o, 'item'): # Numpy scalar
@@ -23,8 +23,8 @@ def json_converter(o):
 
 def save_metaheuristic_result(result, filename="result.pkl", folder='result', format='pickle'):
     """
-    Lưu kết quả chạy thuật toán.
-    format: 'pickle' (nhị phân, giữ nguyên object) hoặc 'json' (text, dễ đọc).
+    Save metaheuristic result.
+    format: 'pickle' (binary object) or 'json' (text, human-readable).
     """
     os.makedirs(folder, exist_ok=True)
     file_path = os.path.join(folder, filename)
@@ -34,28 +34,28 @@ def save_metaheuristic_result(result, filename="result.pkl", folder='result', fo
             pickle.dump(result, f)
     
     elif format == 'json':
-        # Đổi đuôi file nếu cần
+        # change file extension if necessary
         if not filename.endswith('.json'): 
             file_path = file_path.replace('.pkl', '.json')
             
         with open(file_path, "w", encoding='utf-8') as f:
-            # skipkeys=True để bỏ qua các key là tuple (JSON chỉ cho key là string)
-            # Tuy nhiên tuple key (Line, Date) rất quan trọng, ta nên convert key thành string
+            # skipkeys=True to skip tuple keys (JSON requires string keys)
+            # However tuple keys like (Line, Date) are important, so convert them to strings
             json_ready_result = _convert_keys_to_string(result)
             json.dump(json_ready_result, f, indent=4, default=json_converter, ensure_ascii=False)
             
-    print(f"Đã lưu kết quả vào: {file_path}")
+    print(f"Result saved to: {file_path}")
 
 def load_metaheuristic_result(filename="result.pkl", folder='result'):
     file_path = os.path.join(folder, filename)
     if not os.path.exists(file_path):
-        raise FileNotFoundError(f"File {file_path} không tồn tại.")
+        raise FileNotFoundError(f"File {file_path} does not exist.")
         
     with open(file_path, "rb") as f:
         return pickle.load(f)
 
 def _convert_keys_to_string(data):
-    """Đệ quy chuyển đổi dictionary key từ tuple/int sang string để lưu JSON."""
+    """Recursively convert dictionary keys from tuple/int to string for JSON storage."""
     if isinstance(data, dict):
         new_dict = {}
         for k, v in data.items():
@@ -71,7 +71,7 @@ def _convert_keys_to_string(data):
 
 def save_model_solution(model, filename="solution.pkl", folder='result'):
     if not HAS_PYOMO:
-        print("Cảnh báo: Không tìm thấy thư viện Pyomo. Không thể lưu model.")
+        print("Warning: Pyomo library not found. Cannot save model.")
         return
 
     os.makedirs(folder, exist_ok=True)

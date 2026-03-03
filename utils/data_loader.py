@@ -9,7 +9,7 @@ class InputData:
     param: Dict[str, Any] = field(default_factory=dict)
 
 def clean_column_names(df: pd.DataFrame) -> pd.DataFrame:
-    """Chuẩn hóa tên cột: Xóa khoảng trắng thừa, ký tự lạ."""
+    """Normalize column names by stripping whitespace and removing odd characters."""
     if df.columns is not None:
         cols = (
             df.columns.astype(str)
@@ -28,59 +28,59 @@ def get_dataframe_from_excel(
     autodetect_header: bool = False
 ) -> pd.DataFrame:
     """
-    Đọc Excel thông minh.
-    
+    Smart Excel reader.
+
     Parameters
     ----------
     expected_columns : list
-        Danh sách các cột BẮT BUỘC phải có (ví dụ: ['Experience', 'Efficiency']).
-        Dùng để tìm dòng header nếu autodetect_header=True.
+        List of required column names (e.g. ['Experience', 'Efficiency']).
+        Used to detect the header row when ``autodetect_header`` is True.
     autodetect_header : bool
-        Nếu True, sẽ quét 20 dòng đầu để tìm dòng chứa expected_columns.
+        If True, scans the first 20 rows for a header containing the expected columns.
     """
     try:
-        # Nếu không cần tự động dò header, đọc bình thường
+        # straightforward read if no header detection required
         if not autodetect_header:
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=header)
             return clean_column_names(df)
 
-        # 1. Đọc dữ liệu thô (không header)
+        # 1. read raw data without header
         df_raw = pd.read_excel(file_path, sheet_name=sheet_name, header=None)
         
         if df_raw.empty:
             return pd.DataFrame()
 
-        # Chuẩn hóa expected_columns về chữ thường để so sánh
+        # normalize expected_columns to lowercase for comparison
         required_cols = set(c.lower() for c in (expected_columns or []))
         
         found_header_idx = -1
         
-        # 2. Quét 20 dòng đầu
+        # 2. scan first 20 rows
         for idx, row in df_raw.head(20).iterrows():
-            # Lấy giá trị dòng, chuyển về string lowercase
+            # take row values as lowercase strings
             row_vals = set(str(v).strip().lower() for v in row.values)
             
-            # Kiểm tra xem dòng này có chứa tất cả cột mong muốn không
+            # check if this row contains all required columns
             if required_cols.issubset(row_vals):
                 found_header_idx = idx
                 break
         
-        # 3. Xử lý kết quả
+        # 3. handle result
         if found_header_idx != -1:
-            # Reload lại file với header chính xác
+            # reload the file using the detected header row
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=found_header_idx)
-            print(f"   -> [Loader] Tìm thấy header sheet '{sheet_name}' tại dòng {found_header_idx + 1}")
+            print(f"   -> [Loader] found header for sheet '{sheet_name}' at row {found_header_idx + 1}")
         else:
-            # Fallback: Nếu không tìm thấy, thử dùng header=0 hoặc header=1
-            print(f"   -> [Loader] Cảnh báo: Không tìm thấy cột {expected_columns} trong '{sheet_name}'. Đọc mặc định.")
+            # fallback: if not found, use default header
+            print(f"   -> [Loader] Warning: columns {expected_columns} not found in '{sheet_name}'. Using default header.")
             df = pd.read_excel(file_path, sheet_name=sheet_name, header=0)
 
         return clean_column_names(df)
 
     except ValueError:
-        # Lỗi thường gặp: Sheet không tồn tại
-        print(f"   -> [Loader] Bỏ qua: Không tìm thấy sheet '{sheet_name}'.")
+        # common error: sheet does not exist
+        print(f"   -> [Loader] skipping: sheet '{sheet_name}' not found.")
         return pd.DataFrame()
     except Exception as e:
-        print(f"   -> [Loader] Lỗi đọc file {file_path}, sheet {sheet_name}: {e}")
+        print(f"   -> [Loader] error reading file {file_path}, sheet {sheet_name}: {e}")
         return pd.DataFrame()
